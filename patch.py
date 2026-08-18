@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-import sys, os, shutil, subprocess
+import sys, os, shutil, subprocess, select
 
 compose_path = "/opt/remnanode/docker-compose.yml"
 log_dir = "/var/log/remnanode"
 log_file = f"{log_dir}/access.log"
-target_volume = "/var/log/remnanode:/var/log/remnanode:rw"
+target_volume_check = "/var/log/remnanode:/var/log/remnanode"
+target_volume_insert = "/var/log/remnanode:/var/log/remnanode:rw"
 
 # 1. Подготовка директорий и файлов
 os.makedirs(log_dir, exist_ok=True)
@@ -25,9 +26,11 @@ shutil.copy2(compose_path, backup_path)
 with open(compose_path, 'r', encoding='utf-8') as f:
     lines = f.readlines()
 
+# Очистка невидимых символов и неформатных переносов
 lines = [l.replace('\xa0', ' ').replace('\r', '') for l in lines]
 
-if any(target_volume in line for line in lines):
+# 3. Проверка наличия volume (без учета :rw на конце)
+if any(target_volume_check in line for line in lines):
     print("[+] Volume для логов уже прописан.")
     need_restart = False
 else:
@@ -36,35 +39,36 @@ else:
     new_lines = []
     in_remnanode = False
     has_volumes = False
-    service_indent = ""
     inserted = False
 
-    # Шаг 1: Проверяем структуру сервиса remnanode
+    # Шаг A: Определяем структуру и отступы
+    remnanode_indent = ""
+    volumes_indent = ""
+    
     for line in lines:
         stripped = line.lstrip()
         if stripped.startswith("remnanode:"):
+            remnanode_indent = line[:len(line) - len(stripped)]
             in_remnanode = True
             continue
-        
-        if in_remnanode and line.strip():
-            # Определяем отступ для ключей внутри remnanode (например, "  image:" -> 2 пробела)
-            current_indent = line[:len(line) - len(stripped)]
-            if not service_indent and len(current_indent) > 0:
-                service_indent = current_indent
-
-            if line.strip() == "volumes:" or line.strip().startswith("volumes:"):
-                has_volumes = True
-
-            # Вышли из блока remnanode
-            if len(current_indent) <= 0 and not line.startswith(" "):
+            
+        if in_remnanode and stripped:
+            curr_indent = line[:len(line) - len(stripped)]
+            if len(curr_indent) <= len(remnanode_indent) and not line.startswith(remnanode_indent + " "):
                 in_remnanode = False
+                continue
+                
+            if stripped.startswith("volumes:"):
+                has_volumes = True
+                volumes_indent = curr_indent
 
-    # Определяем отступы для элементов
-    if not service_indent:
-        service_indent = "  "
-    item_indent = service_indent + service_indent
+    # Дефолтные отступы, если структура стандартная
+    if not remnanode_indent:
+        remnanode_indent = "  "
+    service_attr_indent = remnanode_indent + "  "
+    item_indent = (volumes_indent + "  ") if volumes_indent else (service_attr_indent + "  ")
 
-    # Шаг 2: Вставка volume
+    # Шаг B: Вставка volume
     in_remnanode = False
     for line in lines:
         new_lines.append(line)
@@ -73,25 +77,25 @@ else:
         if stripped.startswith("remnanode:"):
             in_remnanode = True
             if not has_volumes and not inserted:
-                new_lines.append(f"{service_indent}volumes:\n")
-                new_lines.append(f"{item_indent}- {target_volume}\n")
+                new_lines.append(f"{service_attr_indent}volumes:\n")
+                new_lines.append(f"{item_indent}- {target_volume_insert}\n")
                 inserted = True
             continue
 
-        if in_remnanode and line.strip():
-            current_indent = line[:len(line) - len(stripped)]
-            if len(current_indent) <= 0 and not line.startswith(" "):
+        if in_remnanode and stripped:
+            curr_indent = line[:len(line) - len(stripped)]
+            if len(curr_indent) <= len(remnanode_indent) and not line.startswith(remnanode_indent + " "):
                 in_remnanode = False
 
-        if in_remnanode and has_volumes and line.strip().startswith("volumes:") and not inserted:
-            new_lines.append(f"{item_indent}- {target_volume}\n")
+        if in_remnanode and has_volumes and stripped.startswith("volumes:") and not inserted:
+            new_lines.append(f"{item_indent}- {target_volume_insert}\n")
             inserted = True
 
     if inserted:
         with open(compose_path, 'w', encoding='utf-8') as f:
             f.writelines(new_lines)
 
-        # 3. Валидация валидности синтаксиса YAML
+        # 4. Проверка валидности YAML через docker compose
         os.chdir("/opt/remnanode")
         check_yaml = subprocess.run(["docker", "compose", "config"], capture_output=True, text=True)
         if check_yaml.returncode != 0:
@@ -103,10 +107,10 @@ else:
         print("[+] Volume успешно добавлен и синтаксис проверен.")
         need_restart = True
     else:
-        print("[!] Не удалось автоматически найти блок remnanode.")
+        print("[!] Не удалось найти блок remnanode для вставки.")
         need_restart = False
 
-# 4. Перезапуск
+# 5. Перезапуск
 os.chdir("/opt/remnanode")
 if need_restart:
     print("[-] Перезапускаем контейнер...")
@@ -118,7 +122,19 @@ else:
         print("[-] Контейнер был остановлен. Запускаем...")
         subprocess.run(["docker", "compose", "up", "-d"], check=True)
     else:
-        print("[+] Контейнер запущен.")
+        print("[+] Контейнер уже запущен.")
 
-print("=== Логи ===")
-subprocess.run(["docker", "compose", "logs", "-f", "-t", "--tail=20"])
+# 6. Опциональный показ логов по Enter
+print("\n[+] Готово!")
+print("Нажмите [ENTER] для просмотра логов в реальном времени (или подождите 10 сек для выхода)...")
+
+try:
+    rlist, _, _ = select.select([sys.stdin], [], [], 10)
+    if rlist:
+        sys.stdin.readline()
+        print("\n=== Вывод логов (Ctrl+C для выхода) ===")
+        subprocess.run(["docker", "compose", "logs", "-f", "-t", "--tail=20"])
+    else:
+        print("Пропуск просмотра логов. Завершение.")
+except KeyboardInterrupt:
+    print("\nЗавершено.")
