@@ -41,5 +41,4 @@
 
 Выполните эту команду на каждой вашей ноде от имени `root`:
 
-```bash
-curl -sSL [https://raw.githubusercontent.com/Theraf1u/remnanode-logger/main/patch.py](https://raw.githubusercontent.com/Theraf1u/remnanode-logger/main/patch.py) | python3
+bash curl -sSL [https://raw.githubusercontent.com/Theraf1u/remnanode-logger/main/patch.py](https://raw.githubusercontent.com/Theraf1u/remnanode-logger/main/patch.py) | python3
