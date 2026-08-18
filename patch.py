@@ -124,17 +124,18 @@ else:
     else:
         print("[+] Контейнер уже запущен.")
 
-# 6. Опциональный показ логов только по Enter
+# 6. Опциональный показ логов только по Enter через /dev/tty
 print("\n[+] Готово!")
 print("Нажмите [ENTER] в течение 10 секунд, чтобы посмотреть логи (или подождите для завершения)...")
 
 try:
-    rlist, _, _ = select.select([sys.stdin], [], [], 10)
-    if rlist:
-        sys.stdin.readline()
-        print("\n=== Вывод логов (Ctrl+C для выхода) ===")
-        subprocess.run(["docker", "compose", "logs", "-f", "-t", "--tail=20"])
-    else:
-        print("\nВремя вышло. Логи пропущены, скрипт завершён.")
-except KeyboardInterrupt:
-    print("\nЗавершено.")
+    with open('/dev/tty', 'r') as tty:
+        rlist, _, _ = select.select([tty], [], [], 10)
+        if rlist:
+            tty.readline()
+            print("\n=== Вывод логов (Ctrl+C для выхода) ===")
+            subprocess.run(["docker", "compose", "logs", "-f", "-t", "--tail=20"])
+        else:
+            print("\nВремя вышло. Логи пропущены, скрипт завершён.")
+except Exception:
+    print("\nИнтерактивный терминал недоступен. Завершение работы.")
