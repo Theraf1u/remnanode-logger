@@ -7,7 +7,7 @@
 ## ⚠️ Важное примечание о совместимости
 
 Скрипт проверялся и тестировался **исключительно** на нодах, развёрнутых с помощью скрипта автоматизации от **eGamesAPI**:
-👉 **https://github.com/eGamesAPI/remnawave-reverse-proxy**
+👉 https://github.com/eGamesAPI/remnawave-reverse-proxy
 
 > **Дисклеймер:**  
 > Репозиторий `remnawave-reverse-proxy` является учебным примером для изучения NGINX, реверс-прокси и основ сетевой безопасности. Вы используете эти инструменты **на свой страх и риск**. Если ноды были установлены другим кастомным способом, структура `docker-compose.yml` может отличаться, и корректность работы не гарантируется.
@@ -43,4 +43,3 @@
 
 ```bash
 curl -sSL [https://raw.githubusercontent.com/Theraf1u/remnanode-logger/main/patch.py](https://raw.githubusercontent.com/Theraf1u/remnanode-logger/main/patch.py) | python3
-```
