@@ -124,18 +124,27 @@ else:
     else:
         print("[+] Контейнер уже запущен.")
 
-# 6. Опциональный показ логов только по Enter через /dev/tty
+# 6. Опциональный показ логов по Enter (с поддержкой TTY и fallback на sys.stdin)
 print("\n[+] Готово!")
-print("Нажмите [ENTER] в течение 10 секунд, чтобы посмотреть логи (или подождите для завершения)...")
+print("Нажмите [ENTER] в течение 10 секунд для просмотра логов (или подождите для выхода)...")
 
 try:
-    with open('/dev/tty', 'r') as tty:
-        rlist, _, _ = select.select([tty], [], [], 10)
-        if rlist:
-            tty.readline()
-            print("\n=== Вывод логов (Ctrl+C для выхода) ===")
-            subprocess.run(["docker", "compose", "logs", "-f", "-t", "--tail=20"])
-        else:
-            print("\nВремя вышло. Логи пропущены, скрипт завершён.")
+    # Пробуем открыть напрямую /dev/tty для надежного чтения нажатия
+    input_stream = sys.stdin
+    if os.path.exists('/dev/tty'):
+        try:
+            input_stream = open('/dev/tty', 'r')
+        except Exception:
+            pass
+
+    rlist, _, _ = select.select([input_stream], [], [], 10)
+    if rlist:
+        input_stream.readline()
+        print("\n=== Вывод логов (Ctrl+C для выхода) ===")
+        subprocess.run(["docker", "compose", "logs", "-f", "-t", "--tail=20"])
+    else:
+        print("\nВремя вышло. Пропуск просмотра логов, скрипт завершён.")
+except KeyboardInterrupt:
+    print("\nЗавершено.")
 except Exception:
-    print("\nИнтерактивный терминал недоступен. Завершение работы.")
+    print("\nИнтерактивный ввод недоступен.")
