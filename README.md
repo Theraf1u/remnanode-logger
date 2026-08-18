@@ -42,4 +42,4 @@
 Выполните эту команду на каждой вашей ноде от имени `root`:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Theraf1u/remnanode-logger/main/patch.py | python3
+python3 <(curl -sSL -H 'Cache-Control: no-cache, no-store' "https://raw.githubusercontent.com/Theraf1u/remnanode-logger/main/patch.py?$(date +%s)")
